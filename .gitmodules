@@ -1,21 +1,21 @@
 [submodule "dpdk"]
         path = dpdk
-        url = git@github.com:pmss-dependency-mirror/dpdk.git
+        url = https://github.com/pmss-dependency-mirror/dpdk.git
 [submodule "intel-ipsec-mb"]
         path = intel-ipsec-mb
-        url = git@github.com:pmss-dependency-mirror/intel-ipsec-mb.git
+        url = https://github.com/pmss-dependency-mirror/intel-ipsec-mb.git
 [submodule "isa-l"]
         path = isa-l
-        url = git@github.com:pmss-dependency-mirror/isa-l.git
+        url = https://github.com/pmss-dependency-mirror/isa-l.git
 [submodule "ocf"]
         path = ocf
-        url = git@github.com:pmss-dependency-mirror/ocf.git
+        url = https://github.com/pmss-dependency-mirror/ocf.git
 [submodule "libvfio-user"]
         path = libvfio-user
-        url = git@github.com:pmss-dependency-mirror/libvfio-user.git
+        url = https://github.com/pmss-dependency-mirror/libvfio-user.git
 [submodule "xnvme"]
         path = xnvme
-        url = git@github.com:pmss-dependency-mirror/xNVMe.git
+        url = https://github.com/pmss-dependency-mirror/xNVMe.git
 [submodule "isa-l-crypto"]
         path = isa-l-crypto
-        url = git@github.com:pmss-dependency-mirror/isa-l_crypto
+        url = https://github.com/pmss-dependency-mirror/isa-l_crypto
