@@ -75,7 +75,7 @@ elif ((GCC_VERSION >= 11)); then
 	EXTRA_CXXFLAGS+="-Wno-error=range-loop-construct"
 fi
 
-$MAKE db_bench $MAKEFLAGS $MAKECONFIG DEBUG_LEVEL=0 SPDK_DIR=../spdk EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS"
+export USE_RTTI=1 && $MAKE db_bench $MAKEFLAGS $MAKECONFIG DEBUG_LEVEL=0 SPDK_DIR=../spdk EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS"
 popd
 
 timing_exit db_bench_build
