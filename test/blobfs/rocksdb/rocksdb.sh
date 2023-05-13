@@ -7,6 +7,14 @@ testdir=$(readlink -f $(dirname $0))
 rootdir=$(readlink -f $testdir/../../..)
 source $rootdir/test/common/autotest_common.sh
 
+nospdk=$1
+
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	dbdir=/mnt/rocksdb-blobfs
+else
+	dbdir=/mnt/rocksdb-ext4
+fi
+
 sanitize_results() {
 	process_core
 	[[ -d $RESULTS_DIR ]] && chmod 644 "$RESULTS_DIR/"*
@@ -29,19 +37,29 @@ run_step() {
 		exit 1
 	fi
 
+	if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+		cat <<- EOL >> "$1"_flags.txt
+			--spdk=$ROCKSDB_CONF
+			--spdk_bdev=Nvme0n1
+			--spdk_cache_size=$CACHE_SIZE
+		EOL
+	fi
+
 	cat <<- EOL >> "$1"_flags.txt
-		--spdk=$ROCKSDB_CONF
-		--spdk_bdev=Nvme0n1
-		--spdk_cache_size=$CACHE_SIZE
+		--db=$dbdir
 	EOL
 
 	db_bench=$1_db_bench.txt
 	echo -n Start $1 test phase...
 	time taskset 0xFF $DB_BENCH --flagfile="$1"_flags.txt &> "$db_bench"
-	DB_BENCH_FILE=$(grep -o '/dev/shm/\(\w\|\.\|\d\|/\)*' "$db_bench")
-	gzip $DB_BENCH_FILE
-	mv $DB_BENCH_FILE.gz "$1"_trace.gz
-	chmod 644 "$1"_trace.gz
+
+	if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+		DB_BENCH_FILE=$(grep -o '/dev/shm/\(\w\|\.\|\d\|/\)*' "$db_bench")
+		gzip $DB_BENCH_FILE
+		mv $DB_BENCH_FILE.gz "$1"_trace.gz
+		chmod 644 "$1"_trace.gz
+	fi
+
 	echo done.
 }
 
@@ -75,22 +93,37 @@ elif ((GCC_VERSION >= 11)); then
 	EXTRA_CXXFLAGS+="-Wno-error=range-loop-construct"
 fi
 
-export USE_RTTI=1 && $MAKE db_bench $MAKEFLAGS $MAKECONFIG DEBUG_LEVEL=0 SPDK_DIR=../spdk EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS"
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	export USE_RTTI=1 && $MAKE db_bench $MAKEFLAGS $MAKECONFIG DEBUG_LEVEL=0 SPDK_DIR=../spdk EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS"
+else
+	export USE_RTTI=1 && $MAKE db_bench $MAKEFLAGS $MAKECONFIG DEBUG_LEVEL=0 EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS"
+fi
+
 popd
 
 timing_exit db_bench_build
 
-$rootdir/scripts/gen_nvme.sh --json-with-subsystems > $ROCKSDB_CONF
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	$rootdir/scripts/gen_nvme.sh --json-with-subsystems > $ROCKSDB_CONF
+fi
 
 trap 'dump_db_bench_on_err; run_bsdump || :; rm -f $ROCKSDB_CONF; sanitize_results; exit 1' SIGINT SIGTERM EXIT
 
-if [ -z "$SKIP_MKFS" ]; then
-	# 0x80 is the bit mask for BlobFS tracepoints
-	run_test "blobfs_mkfs" $rootdir/test/blobfs/mkfs/mkfs $ROCKSDB_CONF Nvme0n1 --tpoint-group blobfs
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	if [ -z "$SKIP_MKFS" ]; then
+		# 0x80 is the bit mask for BlobFS tracepoints
+		run_test "blobfs_mkfs" $rootdir/test/blobfs/mkfs/mkfs $ROCKSDB_CONF Nvme0n1 --tpoint-group blobfs
+	fi
 fi
 
-mkdir -p $output_dir/rocksdb
-RESULTS_DIR=$output_dir/rocksdb
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	mkdir -p $output_dir/rocksdb-blobfs
+	RESULTS_DIR=$output_dir/rocksdb-blobfs
+else
+	mkdir -p $output_dir/rocksdb-ext4
+	RESULTS_DIR=$output_dir/rocksdb-ext4
+fi
+
 if [ $RUN_NIGHTLY -eq 1 ]; then
 	CACHE_SIZE=4096
 	DURATION=60
@@ -107,8 +140,9 @@ fi
 # with the right amount not allowing setup.sh to split it by using the global
 # nr_hugepages setting. Instead of bypassing it completely, we use it to also
 # get the right size of hugepages.
-HUGEMEM=$((CACHE_SIZE + 1024)) HUGENODE=0 \
-	"$rootdir/scripts/setup.sh"
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	HUGEMEM=$((CACHE_SIZE + 1024)) HUGENODE=0 "$rootdir/scripts/setup.sh"
+fi
 
 cd $RESULTS_DIR
 cp $testdir/common_flags.txt insert_flags.txt
@@ -169,6 +203,9 @@ run_test "rocksdb_randread" run_step randread
 
 trap - SIGINT SIGTERM EXIT
 
-run_bsdump
-rm -f $ROCKSDB_CONF
+if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
+	run_bsdump
+	rm -f $ROCKSDB_CONF
+fi
+
 sanitize_results
