@@ -8,6 +8,21 @@ rootdir=$(readlink -f $testdir/../../..)
 source $rootdir/test/common/autotest_common.sh
 
 nospdk=$1
+nvme_dev=$2
+
+if [[ -n $nospdk ]]; then
+	if [[ $nospdk != "nospdk" ]]; then
+		echo "Wrong parameters 1 = $1 2 = $2"
+		exit 1
+	fi
+	if [[ ! -e "$nvme_dev" ]]; then
+		$rootdir/scripts/setup.sh reset
+	fi
+	if [[ ! -e "$nvme_dev" ]]; then
+		echo "Wrong parameters 1 = $1 2 = $2"
+		exit 1
+	fi
+fi
 
 if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 	dbdir=/mnt/rocksdb-blobfs
@@ -114,14 +129,16 @@ if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 		# 0x80 is the bit mask for BlobFS tracepoints
 		run_test "blobfs_mkfs" $rootdir/test/blobfs/mkfs/mkfs $ROCKSDB_CONF Nvme0n1 --tpoint-group blobfs
 	fi
+else
+	run_test "ext4_mkfs" mkfs.ext4 -F $nvme_dev
+	mkdir -p $output_dir/rocksdb-ext4
+	RESULTS_DIR=$output_dir/rocksdb-ext4
+	mount $nvme_dev $dbdir
 fi
 
 if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 	mkdir -p $output_dir/rocksdb-blobfs
 	RESULTS_DIR=$output_dir/rocksdb-blobfs
-else
-	mkdir -p $output_dir/rocksdb-ext4
-	RESULTS_DIR=$output_dir/rocksdb-ext4
 fi
 
 if [ $RUN_NIGHTLY -eq 1 ]; then
@@ -206,6 +223,8 @@ trap - SIGINT SIGTERM EXIT
 if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 	run_bsdump
 	rm -f $ROCKSDB_CONF
+else
+	umount $dbdir
 fi
 
 sanitize_results
