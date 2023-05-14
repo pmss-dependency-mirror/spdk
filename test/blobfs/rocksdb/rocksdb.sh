@@ -7,19 +7,25 @@ testdir=$(readlink -f $(dirname $0))
 rootdir=$(readlink -f $testdir/../../..)
 source $rootdir/test/common/autotest_common.sh
 
-nospdk=$1
-nvme_dev=$2
+nthreads=$1
+nospdk=$2
+nvme_dev=$3
+
+if [[ -z $nthreads ]]; then
+	echo "Wrong parameters 1 = $1"
+	exit 1
+fi
 
 if [[ -n $nospdk ]]; then
 	if [[ $nospdk != "nospdk" ]]; then
-		echo "Wrong parameters 1 = $1 2 = $2"
+		echo "Wrong parameters 2 = $2 3 = $3"
 		exit 1
 	fi
 	if [[ ! -e "$nvme_dev" ]]; then
 		$rootdir/scripts/setup.sh reset
 	fi
 	if [[ ! -e "$nvme_dev" ]]; then
-		echo "Wrong parameters 1 = $1 2 = $2"
+		echo "Wrong parameters 2 = $2 3 = $3"
 		exit 1
 	fi
 fi
@@ -66,7 +72,7 @@ run_step() {
 
 	db_bench=$1_db_bench.txt
 	echo -n Start $1 test phase...
-	time taskset 0xFF $DB_BENCH --flagfile="$1"_flags.txt &> "$db_bench"
+	time taskset 0xFFFFFFFF $DB_BENCH --flagfile="$1"_flags.txt &> "$db_bench"
 
 	if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 		DB_BENCH_FILE=$(grep -o '/dev/shm/\(\w\|\.\|\d\|/\)*' "$db_bench")
@@ -131,14 +137,14 @@ if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 	fi
 else
 	run_test "ext4_mkfs" mkfs.ext4 -F $nvme_dev
-	mkdir -p $output_dir/rocksdb-ext4
-	RESULTS_DIR=$output_dir/rocksdb-ext4
+	mkdir -p $output_dir/rocksdb-ext4-$nthreads-thread 
+	RESULTS_DIR=$output_dir/rocksdb-ext4-$nthreads-thread 
 	mount $nvme_dev $dbdir
 fi
 
 if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
-	mkdir -p $output_dir/rocksdb-blobfs
-	RESULTS_DIR=$output_dir/rocksdb-blobfs
+	mkdir -p $output_dir/rocksdb-blobfs-$nthreads-thread 
+	RESULTS_DIR=$output_dir/rocksdb-blobfs-$nthreads-thread 
 fi
 
 if [ $RUN_NIGHTLY -eq 1 ]; then
@@ -165,7 +171,7 @@ cd $RESULTS_DIR
 cp $testdir/common_flags.txt insert_flags.txt
 cat << EOL >> insert_flags.txt
 --benchmarks=fillseq
---threads=1
+--threads=$nthreads
 --disable_wal=1
 --use_existing_db=0
 --num=$NUM_KEYS
@@ -174,7 +180,7 @@ EOL
 cp $testdir/common_flags.txt randread_flags.txt
 cat << EOL >> randread_flags.txt
 --benchmarks=readrandom
---threads=16
+--threads=$nthreads
 --duration=$DURATION
 --disable_wal=1
 --use_existing_db=1
@@ -184,7 +190,7 @@ EOL
 cp $testdir/common_flags.txt overwrite_flags.txt
 cat << EOL >> overwrite_flags.txt
 --benchmarks=overwrite
---threads=1
+--threads=$nthreads
 --duration=$DURATION
 --disable_wal=1
 --use_existing_db=1
@@ -194,7 +200,7 @@ EOL
 cp $testdir/common_flags.txt readwrite_flags.txt
 cat << EOL >> readwrite_flags.txt
 --benchmarks=readwhilewriting
---threads=4
+--threads=$nthreads
 --duration=$DURATION
 --disable_wal=1
 --use_existing_db=1
@@ -204,7 +210,7 @@ EOL
 cp $testdir/common_flags.txt writesync_flags.txt
 cat << EOL >> writesync_flags.txt
 --benchmarks=overwrite
---threads=1
+--threads=$nthreads
 --duration=$DURATION
 --disable_wal=0
 --use_existing_db=1
