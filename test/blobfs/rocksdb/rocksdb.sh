@@ -8,24 +8,37 @@ rootdir=$(readlink -f $testdir/../../..)
 source $rootdir/test/common/autotest_common.sh
 
 nthreads=$1
-nospdk=$2
-nvme_dev=$3
+skipclean=$2
+nospdk=$3
+nvme_dev=$4
 
 if [[ -z $nthreads ]]; then
 	echo "Wrong parameters 1 = $1"
 	exit 1
 fi
 
+if [[ -z $skipclean ]]; then
+	echo "Wrong parameters 2 = $2"
+	exit 1
+fi
+
+if [[ $skipclean == "skipclean" ]]; then
+	SKIP_GIT_CLEAN="1"		
+elif [[ $skipclean != "noskipclean" ]]; then
+	echo "Wrong parameters 2 = $2"
+	exit 1
+fi
+
 if [[ -n $nospdk ]]; then
 	if [[ $nospdk != "nospdk" ]]; then
-		echo "Wrong parameters 2 = $2 3 = $3"
+		echo "Wrong parameters 3 = $3 4 = $4"
 		exit 1
 	fi
 	if [[ ! -e "$nvme_dev" ]]; then
 		$rootdir/scripts/setup.sh reset
 	fi
 	if [[ ! -e "$nvme_dev" ]]; then
-		echo "Wrong parameters 2 = $2 3 = $3"
+		echo "Wrong parameters 3 = $3 4 = $4"
 		exit 1
 	fi
 fi
@@ -72,7 +85,7 @@ run_step() {
 
 	db_bench=$1_db_bench.txt
 	echo -n Start $1 test phase...
-	time taskset 0xFFFFFFFF $DB_BENCH --flagfile="$1"_flags.txt &> "$db_bench"
+	time taskset --cpu-list 0-95:2 $DB_BENCH --flagfile="$1"_flags.txt &> "$db_bench"
 
 	if [[ -z $nospdk || $nospdk != "nospdk" ]]; then
 		DB_BENCH_FILE=$(grep -o '/dev/shm/\(\w\|\.\|\d\|/\)*' "$db_bench")
